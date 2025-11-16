@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import Header from "@/components/Header";
 import TopicInput from "@/components/TopicInput";
 import FlashcardGrid, { Flashcard } from "@/components/FlashcardGrid";
@@ -10,87 +11,58 @@ const Index = () => {
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showQuiz, setShowQuiz] = useState(false);
+  const [currentTopic, setCurrentTopic] = useState("");
+  const [currentMode, setCurrentMode] = useState<"stem" | "general">("general");
 
   const handleGenerate = async (topic: string, mode: "stem" | "general") => {
     setIsLoading(true);
     setShowQuiz(false);
+    setCurrentTopic(topic);
+    setCurrentMode(mode);
     
     try {
-      // Mock data for demonstration - will be replaced with Lovable AI
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      console.log("Generating flashcards for:", topic, mode);
       
-      const mockFlashcards: Flashcard[] = [
-        {
-          id: "1",
-          question: `What is the main concept of ${topic}?`,
-          answer: `The main concept involves understanding the fundamental principles and applications in the context of ${mode === "stem" ? "scientific and mathematical" : "general knowledge"} domains.`,
-          category: mode.toUpperCase()
-        },
-        {
-          id: "2",
-          question: `How does ${topic} apply in real-world scenarios?`,
-          answer: `${topic} has practical applications in various fields including technology, research, and everyday problem-solving.`,
-          category: mode.toUpperCase()
-        },
-        {
-          id: "3",
-          question: `What are the key components of ${topic}?`,
-          answer: `The key components include theoretical foundations, practical methodologies, and real-world implementations.`,
-          category: mode.toUpperCase()
-        },
-        {
-          id: "4",
-          question: `Why is ${topic} important to study?`,
-          answer: `Studying ${topic} helps develop critical thinking skills and provides essential knowledge for academic and professional growth.`,
-          category: mode.toUpperCase()
-        }
-      ];
+      const { data, error } = await supabase.functions.invoke("generate-flashcards", {
+        body: { topic, mode },
+      });
 
-      const mockQuestions: QuizQuestion[] = [
-        {
-          id: "q1",
-          question: `Which statement best describes ${topic}?`,
-          options: [
-            "A fundamental principle in the field",
-            "An outdated concept",
-            "A simple memorization task",
-            "An irrelevant topic"
-          ],
-          correctAnswer: 0,
-          explanation: `${topic} is indeed a fundamental principle that forms the basis for more advanced understanding.`
-        },
-        {
-          id: "q2",
-          question: `What is the primary application of ${topic}?`,
-          options: [
-            "Entertainment only",
-            "Practical problem-solving and innovation",
-            "Historical documentation",
-            "No real applications"
-          ],
-          correctAnswer: 1,
-          explanation: `${topic} has significant practical applications in problem-solving and driving innovation across various domains.`
-        },
-        {
-          id: "q3",
-          question: `In ${mode === "stem" ? "STEM fields" : "general knowledge"}, ${topic} is considered:`,
-          options: [
-            "Optional learning material",
-            "Core foundational knowledge",
-            "Advanced specialization only",
-            "Rarely discussed"
-          ],
-          correctAnswer: 1,
-          explanation: `${topic} represents core foundational knowledge essential for understanding more complex concepts.`
-        }
-      ];
+      if (error) {
+        console.error("Error generating flashcards:", error);
+        throw error;
+      }
 
-      setFlashcards(mockFlashcards);
-      setQuizQuestions(mockQuestions);
-      toast.success(`Generated ${mockFlashcards.length} flashcards for "${topic}"!`);
-    } catch (error) {
-      toast.error("Failed to generate flashcards. Please try again.");
-      console.error(error);
+      if (!data?.flashcards || data.flashcards.length === 0) {
+        throw new Error("No flashcards generated");
+      }
+
+      setFlashcards(data.flashcards);
+      toast.success(`Generated ${data.flashcards.length} flashcards for "${topic}"!`);
+      
+      // Generate quiz questions
+      console.log("Generating quiz questions...");
+      const { data: quizData, error: quizError } = await supabase.functions.invoke("generate-quiz", {
+        body: { topic, mode, flashcards: data.flashcards },
+      });
+
+      if (quizError) {
+        console.error("Error generating quiz:", quizError);
+        toast.error("Flashcards created, but quiz generation failed");
+      } else if (quizData?.questions) {
+        setQuizQuestions(quizData.questions);
+        console.log("Quiz questions generated:", quizData.questions.length);
+      }
+      
+    } catch (error: any) {
+      console.error("Generation error:", error);
+      
+      if (error.message?.includes("429") || error.message?.includes("Rate limit")) {
+        toast.error("Rate limit reached. Please try again in a moment.");
+      } else if (error.message?.includes("402") || error.message?.includes("credits")) {
+        toast.error("AI credits depleted. Please add credits to continue.");
+      } else {
+        toast.error("Failed to generate flashcards. Please try again.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -98,10 +70,20 @@ const Index = () => {
 
   const handleQuizComplete = (score: number, weakAreas: string[]) => {
     const percentage = (score / quizQuestions.length) * 100;
-    toast.success(
-      `Quiz completed! You scored ${score}/${quizQuestions.length} (${percentage.toFixed(0)}%)`,
-      { duration: 5000 }
-    );
+    
+    let message = `Quiz completed! You scored ${score}/${quizQuestions.length} (${percentage.toFixed(0)}%)`;
+    
+    if (percentage === 100) {
+      message += " - Perfect score! 🎉";
+    } else if (percentage >= 80) {
+      message += " - Great job! 👏";
+    } else if (percentage >= 60) {
+      message += " - Good effort! Keep practicing 📚";
+    } else {
+      message += " - Keep studying and try again! 💪";
+    }
+    
+    toast.success(message, { duration: 5000 });
   };
 
   return (
@@ -115,16 +97,18 @@ const Index = () => {
           <>
             <FlashcardGrid flashcards={flashcards} />
             
-            <div className="flex justify-center">
-              <button
-                onClick={() => setShowQuiz(!showQuiz)}
-                className="px-8 py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:opacity-90 transition-opacity"
-              >
-                {showQuiz ? "Hide Quiz" : "Start Interactive Quiz"}
-              </button>
-            </div>
+            {quizQuestions.length > 0 && (
+              <div className="flex justify-center">
+                <button
+                  onClick={() => setShowQuiz(!showQuiz)}
+                  className="px-8 py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:opacity-90 transition-opacity shadow-md"
+                >
+                  {showQuiz ? "Hide Quiz" : "Start Interactive Quiz"}
+                </button>
+              </div>
+            )}
 
-            {showQuiz && (
+            {showQuiz && quizQuestions.length > 0 && (
               <QuizPanel 
                 questions={quizQuestions} 
                 onComplete={handleQuizComplete}
