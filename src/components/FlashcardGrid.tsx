@@ -23,24 +23,24 @@ const FlashcardItem = ({ flashcard }: { flashcard: Flashcard }) => {
     >
       <div className={`flip-card-inner relative w-full h-full transition-transform duration-500 ${isFlipped ? '[transform:rotateY(180deg)]' : ''}`} style={{ transformStyle: 'preserve-3d' }}>
         {/* Front */}
-        <Card className="flip-card-front absolute inset-0 bg-card text-card-foreground p-6 flex flex-col justify-between rounded-2xl shadow-md border-2 border-border" style={{ backfaceVisibility: 'hidden' }}>
-          <div className="flex-1 flex items-center justify-center">
-            <p className="text-lg font-medium text-center">{flashcard.question}</p>
+        <Card className="flip-card-front absolute inset-0 bg-card text-card-foreground p-6 flex flex-col justify-between rounded-2xl shadow-md border-2 border-border overflow-hidden" style={{ backfaceVisibility: 'hidden' }}>
+          <div className="flex-1 flex items-center justify-center overflow-y-auto px-2">
+            <p className="text-base font-medium text-center">{flashcard.question}</p>
           </div>
           {flashcard.category && (
-            <Badge variant="secondary" className="self-start">
+            <Badge variant="secondary" className="self-start mt-2 flex-shrink-0">
               {flashcard.category}
             </Badge>
           )}
-          <p className="text-xs text-muted-foreground text-center mt-2">Click to reveal answer</p>
+          <p className="text-xs text-muted-foreground text-center mt-2 flex-shrink-0">Click to reveal answer</p>
         </Card>
 
         {/* Back */}
-        <Card className="flip-card-back absolute inset-0 bg-card-back text-card-back-foreground p-6 flex flex-col justify-between rounded-2xl shadow-md border-2 border-primary" style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}>
-          <div className="flex-1 flex items-center justify-center">
-            <p className="text-lg font-medium text-center">{flashcard.answer}</p>
+        <Card className="flip-card-back absolute inset-0 bg-card-back text-card-back-foreground p-6 flex flex-col justify-between rounded-2xl shadow-md border-2 border-primary overflow-hidden" style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}>
+          <div className="flex-1 flex items-center justify-center overflow-y-auto px-2">
+            <p className="text-base font-medium text-center">{flashcard.answer}</p>
           </div>
-          <p className="text-xs opacity-80 text-center mt-2">Click to see question</p>
+          <p className="text-xs opacity-80 text-center mt-2 flex-shrink-0">Click to see question</p>
         </Card>
       </div>
     </div>
