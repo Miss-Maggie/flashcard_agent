@@ -1,38 +1,31 @@
+// Vertex AI integration without external auth library
+// Using direct OAuth2 token exchange
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+// ADK Pattern: Configuration & Validation
+const getVertexAIConfig = () => {
+  const projectId = Deno.env.get("GOOGLE_CLOUD_PROJECT_ID");
+  const location = Deno.env.get("GOOGLE_CLOUD_LOCATION");
+  const serviceAccountJson = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_JSON");
+
+  if (!projectId || !location || !serviceAccountJson) {
+    throw new Error("Vertex AI configuration missing");
   }
 
-  try {
-    const { topic, mode } = await req.json();
-    console.log("Generating flashcards for topic:", topic, "mode:", mode);
+  return { projectId, location, serviceAccountJson };
+};
 
-    if (!topic) {
-      return new Response(
-        JSON.stringify({ error: "Topic is required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+// ADK Pattern: Prompt Template Management
+const createFlashcardPrompt = (topic: string, mode: string) => {
+  const systemContext = mode === "stem"
+    ? `You are an expert educator specializing in STEM subjects (Science, Technology, Engineering, Mathematics). Create comprehensive, accurate flashcards that test deep understanding of concepts, formulas, and problem-solving approaches. Include technical details and precise definitions.`
+    : `You are an expert educator creating engaging flashcards for general knowledge topics. Focus on interesting facts, key concepts, and practical applications. Make the content accessible and memorable.`;
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      console.error("LOVABLE_API_KEY is not configured");
-      return new Response(
-        JSON.stringify({ error: "AI service not configured" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const systemPrompt = mode === "stem"
-      ? `You are an expert educator specializing in STEM subjects (Science, Technology, Engineering, Mathematics). Create comprehensive, accurate flashcards that test deep understanding of concepts, formulas, and problem-solving approaches. Include technical details and precise definitions.`
-      : `You are an expert educator creating engaging flashcards for general knowledge topics. Focus on interesting facts, key concepts, and practical applications. Make the content accessible and memorable.`;
-
-    const userPrompt = `Create 6 high-quality flashcards about "${topic}". 
+  const userPrompt = `Create 6 high-quality flashcards about "${topic}". 
     
 Each flashcard should:
 - Have a clear, specific question
@@ -51,84 +44,193 @@ Return ONLY a JSON array with this exact structure:
 
 No additional text, just the JSON array.`;
 
-    console.log("Calling Lovable AI...");
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+  return { systemContext, userPrompt };
+};
+
+// Genkit-inspired: Model invocation with structured output
+const callVertexAI = async (prompt: string, systemContext: string, config: any) => {
+  try {
+    const credentials = JSON.parse(config.serviceAccountJson);
+    
+    // Create JWT for Google OAuth2
+    const now = Math.floor(Date.now() / 1000);
+    const jwtHeader = { alg: "RS256", typ: "JWT" };
+    const jwtClaimSet = {
+      iss: credentials.client_email,
+      scope: "https://www.googleapis.com/auth/cloud-platform",
+      aud: "https://oauth2.googleapis.com/token",
+      exp: now + 3600,
+      iat: now,
+    };
+
+    const jwtHeaderBase64 = btoa(JSON.stringify(jwtHeader)).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+    const jwtClaimSetBase64 = btoa(JSON.stringify(jwtClaimSet)).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+    const signatureInput = `${jwtHeaderBase64}.${jwtClaimSetBase64}`;
+
+    // Import private key
+    const privateKey = credentials.private_key.replace(/\\n/g, "\n");
+    const keyData = privateKey.match(/-----BEGIN PRIVATE KEY-----\s*([\s\S]+?)\s*-----END PRIVATE KEY-----/);
+    if (!keyData) throw new Error("Invalid private key format");
+    
+    const binaryKey = Uint8Array.from(atob(keyData[1].replace(/\s/g, "")), c => c.charCodeAt(0));
+    const cryptoKey = await crypto.subtle.importKey(
+      "pkcs8",
+      binaryKey,
+      { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+      false,
+      ["sign"]
+    );
+
+    // Sign JWT
+    const signature = await crypto.subtle.sign(
+      "RSASSA-PKCS1-v1_5",
+      cryptoKey,
+      new TextEncoder().encode(signatureInput)
+    );
+    const signatureBase64 = btoa(String.fromCharCode(...new Uint8Array(signature))).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+    const jwt = `${signatureInput}.${signatureBase64}`;
+
+    // Exchange JWT for access token
+    const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
+    });
+
+    if (!tokenResponse.ok) {
+      throw new Error(`Token exchange failed: ${tokenResponse.status}`);
+    }
+
+    const tokenData = await tokenResponse.json();
+    const accessToken = tokenData.access_token;
+
+    const endpoint = `https://${config.location}-aiplatform.googleapis.com/v1/projects/${config.projectId}/locations/${config.location}/publishers/google/models/gemini-2.0-flash-exp:generateContent`;
+
+    const response = await fetch(endpoint, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { text: systemContext },
+              { text: prompt },
+            ],
+          },
         ],
+        generationConfig: {
+          temperature: 0.9,
+          topK: 40,
+          topP: 0.95,
+          maxOutputTokens: 2048,
+        },
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("AI API error:", response.status, errorText);
-      
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "AI credits depleted. Please add credits to continue." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      
+      console.error("Vertex AI error:", response.status, errorText);
+      throw new Error(`Vertex AI request failed: ${response.status}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Error calling Vertex AI:", error);
+    throw error;
+  }
+};
+
+// ADK Pattern: Response validation and parsing
+const parseFlashcards = (content: string) => {
+  let cleanContent = content.trim();
+  
+  if (cleanContent.startsWith("```json")) {
+    cleanContent = cleanContent.slice(7);
+  }
+  if (cleanContent.startsWith("```")) {
+    cleanContent = cleanContent.slice(3);
+  }
+  if (cleanContent.endsWith("```")) {
+    cleanContent = cleanContent.slice(0, -3);
+  }
+  
+  cleanContent = cleanContent.trim();
+  const flashcards = JSON.parse(cleanContent);
+  
+  if (!Array.isArray(flashcards) || flashcards.length === 0) {
+    throw new Error("Invalid flashcard format");
+  }
+
+  // Validate structure
+  flashcards.forEach((card, index) => {
+    if (!card.question || !card.answer || !card.category) {
+      throw new Error(`Flashcard ${index} missing required fields`);
+    }
+  });
+
+  return flashcards;
+};
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const { topic, mode } = await req.json();
+    console.log("[Genkit Flow] Starting flashcard generation for topic:", topic, "mode:", mode);
+
+    if (!topic) {
       return new Response(
-        JSON.stringify({ error: "Failed to generate flashcards" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Topic is required" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const data = await response.json();
-    console.log("AI response received");
-    
-    const content = data.choices?.[0]?.message?.content;
+    // ADK: Get configuration
+    const config = getVertexAIConfig();
+    console.log("[ADK] Configuration validated - Project:", config.projectId, "Location:", config.location);
+
+    // ADK: Create prompt from template
+    const { systemContext, userPrompt } = createFlashcardPrompt(topic, mode || "general");
+    console.log("[ADK] Prompt template created");
+
+    // Genkit: Invoke model
+    console.log("[Genkit] Invoking Vertex AI model...");
+    const aiResponse = await callVertexAI(userPrompt, systemContext, config);
+    console.log("[Genkit] Model response received");
+
+    const content = aiResponse.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!content) {
-      console.error("No content in AI response");
+      console.error("[Genkit] No content in AI response");
       return new Response(
         JSON.stringify({ error: "Invalid AI response" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Parse the JSON array from the content
-    const jsonMatch = content.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) {
-      console.error("Could not find JSON array in response:", content);
-      return new Response(
-        JSON.stringify({ error: "Invalid flashcard format" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    // ADK: Parse and validate response
+    console.log("[ADK] Parsing and validating flashcards...");
+    const flashcards = parseFlashcards(content);
+    console.log(`[ADK] Successfully generated ${flashcards.length} flashcards`);
 
-    const flashcards = JSON.parse(jsonMatch[0]);
-    
-    // Add IDs to flashcards
-    const flashcardsWithIds = flashcards.map((card: any, index: number) => ({
-      id: `${Date.now()}-${index}`,
-      ...card,
-    }));
-
-    console.log(`Generated ${flashcardsWithIds.length} flashcards`);
     return new Response(
-      JSON.stringify({ flashcards: flashcardsWithIds }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({ flashcards }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (error) {
-    console.error("Error in generate-flashcards:", error);
+
+  } catch (error: any) {
+    console.error("[Error]", error.message);
+    
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+      JSON.stringify({ 
+        error: "Failed to generate flashcards",
+        details: error.message 
+      }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
