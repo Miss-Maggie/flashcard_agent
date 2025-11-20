@@ -15,22 +15,22 @@ All colors MUST be HSL.
     --card: 45 100% 95%;
     --card-foreground: 0 0% 11%;
     
-    --card-back: 30 71% 14%;
+    --card-back: 30 71% 10%;
     --card-back-foreground: 45 100% 95%;
 
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 11%;
 
-    --primary: 30 86% 15%;
+    --primary: 30 86% 10%;
     --primary-foreground: 45 100% 95%;
 
     --secondary: 45 100% 95%;
-    --secondary-foreground: 30 86% 15%;
+    --secondary-foreground: 30 86% 10%;
 
     --muted: 40 50% 90%;
-    --muted-foreground: 30 20% 40%;
+    --muted-foreground: 30 20% 30%;
 
-    --accent: 30 75% 25%;
+    --accent: 30 75% 18%;
     --accent-foreground: 45 100% 95%;
 
     --destructive: 0 84.2% 60.2%;
@@ -38,7 +38,7 @@ All colors MUST be HSL.
 
     --border: 40 30% 85%;
     --input: 40 30% 85%;
-    --ring: 30 86% 15%;
+    --ring: 30 86% 10%;
 
     --radius: 1rem;
     
@@ -50,38 +50,38 @@ All colors MUST be HSL.
 
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 0 0% 11%;
-    --sidebar-primary: 30 86% 15%;
+    --sidebar-primary: 30 86% 10%;
     --sidebar-primary-foreground: 45 100% 95%;
     --sidebar-accent: 45 100% 95%;
-    --sidebar-accent-foreground: 30 86% 15%;
+    --sidebar-accent-foreground: 30 86% 10%;
     --sidebar-border: 40 30% 85%;
     --sidebar-ring: 30 86% 15%;
   }
 
   .dark {
-    --background: 30 71% 14%;
+    --background: 30 71% 10%;
     --foreground: 45 100% 95%;
 
-    --card: 30 65% 18%;
+    --card: 30 65% 14%;
     --card-foreground: 45 100% 95%;
     
     --card-back: 45 100% 95%;
     --card-back-foreground: 30 71% 14%;
 
-    --popover: 30 65% 18%;
+    --popover: 30 65% 14%;
     --popover-foreground: 45 100% 95%;
 
     --primary: 45 100% 95%;
-    --primary-foreground: 30 86% 15%;
+    --primary-foreground: 30 86% 10%;
 
-    --secondary: 30 65% 25%;
+    --secondary: 30 65% 20%;
     --secondary-foreground: 45 100% 95%;
 
-    --muted: 30 50% 20%;
+    --muted: 30 50% 16%;
     --muted-foreground: 40 30% 65%;
 
     --accent: 45 80% 75%;
-    --accent-foreground: 30 71% 14%;
+    --accent-foreground: 30 71% 10%;
 
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
@@ -96,11 +96,11 @@ All colors MUST be HSL.
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 11%;
 
-    --sidebar-background: 30 71% 14%;
+    --sidebar-background: 30 71% 10%;
     --sidebar-foreground: 45 100% 95%;
     --sidebar-primary: 45 100% 95%;
-    --sidebar-primary-foreground: 30 86% 15%;
-    --sidebar-accent: 30 65% 25%;
+    --sidebar-primary-foreground: 30 86% 10%;
+    --sidebar-accent: 30 65% 20%;
     --sidebar-accent-foreground: 45 100% 95%;
     --sidebar-border: 30 40% 25%;
     --sidebar-ring: 45 100% 95%;
