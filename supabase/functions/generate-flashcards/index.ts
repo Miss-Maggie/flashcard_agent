@@ -33,6 +33,11 @@ Each flashcard should:
 - Cover different aspects of the topic (definitions, applications, examples, comparisons, etc.)
 ${mode === "stem" ? "- Include formulas, processes, or technical details where relevant" : "- Include interesting facts and real-world connections"}
 
+CRITICAL: Return ONLY valid JSON. All text must be properly escaped:
+- Use \\" for quotes within strings
+- Use \\n for line breaks within strings
+- Escape all special characters properly
+
 Return ONLY a JSON array with this exact structure:
 [
   {
@@ -42,7 +47,7 @@ Return ONLY a JSON array with this exact structure:
   }
 ]
 
-No additional text, just the JSON array.`;
+No markdown code blocks, no additional text, just the raw JSON array.`;
 
   return { systemContext, userPrompt };
 };
@@ -159,20 +164,28 @@ const parseFlashcards = (content: string) => {
   }
   
   cleanContent = cleanContent.trim();
-  const flashcards = JSON.parse(cleanContent);
   
-  if (!Array.isArray(flashcards) || flashcards.length === 0) {
-    throw new Error("Invalid flashcard format");
-  }
-
-  // Validate structure
-  flashcards.forEach((card, index) => {
-    if (!card.question || !card.answer || !card.category) {
-      throw new Error(`Flashcard ${index} missing required fields`);
+  try {
+    const flashcards = JSON.parse(cleanContent);
+    
+    if (!Array.isArray(flashcards) || flashcards.length === 0) {
+      throw new Error("Invalid flashcard format");
     }
-  });
 
-  return flashcards;
+    // Validate structure
+    flashcards.forEach((card, index) => {
+      if (!card.question || !card.answer || !card.category) {
+        throw new Error(`Flashcard ${index} missing required fields`);
+      }
+    });
+
+    return flashcards;
+  } catch (parseError) {
+    console.error("[Parse Error] Failed to parse AI response:", parseError);
+    console.error("[Parse Error] Content that failed:", cleanContent.substring(0, 500));
+    const errorMessage = parseError instanceof Error ? parseError.message : String(parseError);
+    throw new Error(`JSON parsing failed: ${errorMessage}`);
+  }
 };
 
 Deno.serve(async (req) => {
