@@ -183,8 +183,57 @@ const parseFlashcards = (content: string) => {
   } catch (parseError) {
     console.error("[Parse Error] Failed to parse AI response:", parseError);
     console.error("[Parse Error] Content that failed:", cleanContent.substring(0, 500));
-    const errorMessage = parseError instanceof Error ? parseError.message : String(parseError);
-    throw new Error(`JSON parsing failed: ${errorMessage}`);
+
+    // Fallback: try to repair truncated or slightly malformed JSON arrays
+    try {
+      const errorMessage = parseError instanceof Error ? parseError.message : String(parseError);
+
+      // Only attempt repair for common structural issues
+      if (errorMessage.includes("Unterminated string") ||
+          errorMessage.includes("Unexpected end of JSON input") ||
+          errorMessage.includes("Unexpected token")) {
+        // If the array is not properly closed, trim to the last complete object
+        let repaired = cleanContent;
+
+        if (!repaired.trim().endsWith("]")) {
+          const lastBraceIndex = repaired.lastIndexOf("}");
+          if (lastBraceIndex !== -1) {
+            repaired = repaired.slice(0, lastBraceIndex + 1) + "\n]";
+          }
+        }
+
+        // Ensure the content starts with an array
+        if (!repaired.trim().startsWith("[")) {
+          const firstBracket = repaired.indexOf("[");
+          if (firstBracket !== -1) {
+            repaired = repaired.slice(firstBracket);
+          } else {
+            // If we can't find an opening bracket, give up on repair
+            throw new Error("Repair failed: no opening '[' found");
+          }
+        }
+
+        console.warn("[Parse Repair] Attempting to repair JSON and re-parse");
+        const repairedFlashcards = JSON.parse(repaired);
+
+        if (!Array.isArray(repairedFlashcards) || repairedFlashcards.length === 0) {
+          throw new Error("Invalid flashcard format after repair");
+        }
+
+        repairedFlashcards.forEach((card: any, index: number) => {
+          if (!card.question || !card.answer || !card.category) {
+            throw new Error(`Flashcard ${index} missing required fields after repair`);
+          }
+        });
+
+        return repairedFlashcards;
+      }
+    } catch (repairError) {
+      console.error("[Parse Repair] Failed to repair AI JSON:", repairError);
+    }
+
+    const finalErrorMessage = parseError instanceof Error ? parseError.message : String(parseError);
+    throw new Error(`JSON parsing failed: ${finalErrorMessage}`);
   }
 };
 
