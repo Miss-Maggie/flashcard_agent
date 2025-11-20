@@ -1,1 +1,7 @@
 project_id = "gmujlqecshfvbsckcvtm"
+
+[functions.generate-flashcards]
+verify_jwt = false
+
+[functions.generate-quiz]
+verify_jwt = false
