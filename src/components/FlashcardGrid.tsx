@@ -36,8 +36,8 @@ const FlashcardItem = ({ flashcard }: { flashcard: Flashcard }) => {
         </Card>
 
         {/* Back */}
-        <Card className="flip-card-back absolute inset-0 bg-card-back text-card-back-foreground p-6 flex flex-col justify-between rounded-2xl shadow-md border-2 border-primary overflow-hidden" style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}>
-          <div className="flex-1 flex items-center justify-center overflow-y-auto px-2">
+        <Card className="flip-card-back absolute inset-0 bg-card-back text-card-back-foreground p-6 flex flex-col justify-between rounded-2xl shadow-md border-2 border-primary" style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}>
+          <div className="flex-1 flex items-start justify-center overflow-y-auto px-2 py-4">
             <p className="text-base font-medium text-center">{flashcard.answer}</p>
           </div>
           <p className="text-xs opacity-80 text-center mt-2 flex-shrink-0">Click to see question</p>
