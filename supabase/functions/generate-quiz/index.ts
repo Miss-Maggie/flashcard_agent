@@ -39,6 +39,11 @@ Each question should:
 - Cover different aspects and difficulty levels of the topic
 ${mode === "stem" ? "- Test conceptual understanding and problem-solving, not just memorization" : "- Be engaging and test practical knowledge"}
 
+CRITICAL: Return ONLY valid JSON. All text must be properly escaped:
+- Use \\" for quotes within strings
+- Use \\n for line breaks within strings
+- Escape all special characters properly
+
 Return ONLY a JSON array with this exact structure:
 [
   {
@@ -50,7 +55,7 @@ Return ONLY a JSON array with this exact structure:
 ]
 
 The correctAnswer should be the index (0-3) of the correct option in the options array.
-No additional text, just the JSON array.`;
+No markdown code blocks, no additional text, just the raw JSON array.`;
 
   return { systemContext, userPrompt };
 };
@@ -167,24 +172,32 @@ const parseQuizQuestions = (content: string) => {
   }
   
   cleanContent = cleanContent.trim();
-  const questions = JSON.parse(cleanContent);
   
-  if (!Array.isArray(questions) || questions.length === 0) {
-    throw new Error("Invalid quiz format");
+  try {
+    const questions = JSON.parse(cleanContent);
+    
+    if (!Array.isArray(questions) || questions.length === 0) {
+      throw new Error("Invalid quiz format");
+    }
+
+    // Validate structure
+    questions.forEach((q, index) => {
+      if (!q.question || !Array.isArray(q.options) || q.options.length !== 4 || 
+          typeof q.correctAnswer !== "number" || !q.explanation) {
+        throw new Error(`Quiz question ${index} has invalid structure`);
+      }
+      if (q.correctAnswer < 0 || q.correctAnswer > 3) {
+        throw new Error(`Quiz question ${index} has invalid correctAnswer index`);
+      }
+    });
+
+    return questions;
+  } catch (parseError) {
+    console.error("[Parse Error] Failed to parse AI response:", parseError);
+    console.error("[Parse Error] Content that failed:", cleanContent.substring(0, 500));
+    const errorMessage = parseError instanceof Error ? parseError.message : String(parseError);
+    throw new Error(`JSON parsing failed: ${errorMessage}`);
   }
-
-  // Validate structure
-  questions.forEach((q, index) => {
-    if (!q.question || !Array.isArray(q.options) || q.options.length !== 4 || 
-        typeof q.correctAnswer !== "number" || !q.explanation) {
-      throw new Error(`Quiz question ${index} has invalid structure`);
-    }
-    if (q.correctAnswer < 0 || q.correctAnswer > 3) {
-      throw new Error(`Quiz question ${index} has invalid correctAnswer index`);
-    }
-  });
-
-  return questions;
 };
 
 Deno.serve(async (req) => {
