@@ -104,7 +104,7 @@ const callVertexAI = async (prompt: string, systemContext: string, config: any) 
     const tokenData = await tokenResponse.json();
     const accessToken = tokenData.access_token;
 
-    const endpoint = `https://${config.location}-aiplatform.googleapis.com/v1/projects/${config.projectId}/locations/${config.location}/publishers/google/models/gemini-1.5-flash:generateContent`;
+    const endpoint = `https://${config.location}-aiplatform.googleapis.com/v1/projects/${config.projectId}/locations/${config.location}/publishers/google/models/gemini-2.5-flash:generateContent`;
 
     const response = await fetch(endpoint, {
       method: "POST",
