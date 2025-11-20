@@ -110,7 +110,9 @@ const Index = () => {
 
             {showQuiz && quizQuestions.length > 0 && (
               <QuizPanel 
-                questions={quizQuestions} 
+                questions={quizQuestions}
+                topic={currentTopic}
+                mode={currentMode}
                 onComplete={handleQuizComplete}
               />
             )}
