@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { CheckCircle2, XCircle, RotateCcw, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 export interface QuizQuestion {
   id: string;
@@ -16,15 +18,19 @@ export interface QuizQuestion {
 
 interface QuizPanelProps {
   questions: QuizQuestion[];
+  topic?: string;
+  mode?: string;
   onComplete: (score: number, weakAreas: string[]) => void;
 }
 
-const QuizPanel = ({ questions, onComplete }: QuizPanelProps) => {
+const QuizPanel = ({ questions, topic = "Unknown", mode = "general", onComplete }: QuizPanelProps) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [isAnswered, setIsAnswered] = useState(false);
   const [score, setScore] = useState(0);
   const [answers, setAnswers] = useState<boolean[]>([]);
+  const [startTime] = useState<number>(Date.now());
+  const [isSaving, setIsSaving] = useState(false);
 
   if (questions.length === 0) {
     return null;
@@ -51,9 +57,40 @@ const QuizPanel = ({ questions, onComplete }: QuizPanelProps) => {
     }
   };
 
-  const handleNext = () => {
+  const saveQuizResult = async (finalScore: number) => {
+    setIsSaving(true);
+    try {
+      const timeElapsed = Math.floor((Date.now() - startTime) / 1000);
+      const scorePercentage = (finalScore / questions.length) * 100;
+
+      const { error } = await supabase
+        .from("quiz_results")
+        .insert([{
+          topic,
+          mode,
+          total_questions: questions.length,
+          correct_answers: finalScore,
+          score_percentage: scorePercentage,
+          time_taken_seconds: timeElapsed,
+          questions_data: questions as any,
+        }]);
+
+      if (error) {
+        console.error("Error saving quiz result:", error);
+        toast.error("Quiz completed but failed to save results");
+      }
+    } catch (error) {
+      console.error("Error saving quiz result:", error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleNext = async () => {
     if (isLastQuestion) {
-      onComplete(score, []);
+      const finalScore = selectedAnswer === currentQuestion.correctAnswer ? score + 1 : score;
+      await saveQuizResult(finalScore);
+      onComplete(finalScore, []);
     } else {
       setCurrentIndex(currentIndex + 1);
       setSelectedAnswer(null);
@@ -144,10 +181,13 @@ const QuizPanel = ({ questions, onComplete }: QuizPanelProps) => {
             <>
               <Button
                 onClick={handleNext}
+                disabled={isSaving}
                 className="flex-1 h-12 rounded-xl font-medium"
                 size="lg"
               >
-                {isLastQuestion ? (
+                {isSaving ? (
+                  "Saving..."
+                ) : isLastQuestion ? (
                   <>
                     <Trophy className="mr-2 h-5 w-5" />
                     View Results
