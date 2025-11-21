@@ -60,12 +60,20 @@ const QuizPanel = ({ questions, topic = "Unknown", mode = "general", onComplete 
   const saveQuizResult = async (finalScore: number) => {
     setIsSaving(true);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.user) {
+        toast.error("You must be logged in to save quiz results");
+        return;
+      }
+
       const timeElapsed = Math.floor((Date.now() - startTime) / 1000);
       const scorePercentage = (finalScore / questions.length) * 100;
 
       const { error } = await supabase
         .from("quiz_results")
         .insert([{
+          user_id: session.user.id,
           topic,
           mode,
           total_questions: questions.length,

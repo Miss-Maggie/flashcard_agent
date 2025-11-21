@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { Session } from "@supabase/supabase-js";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import Header from "@/components/Header";
@@ -24,6 +25,7 @@ interface QuizResult {
 
 const History = () => {
   const navigate = useNavigate();
+  const [session, setSession] = useState<Session | null>(null);
   const [results, setResults] = useState<QuizResult[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -33,13 +35,36 @@ const History = () => {
     totalQuestions: 0,
   });
 
+  // Auth check
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
+        navigate("/auth");
+      } else {
+        setSession(session);
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!session) {
+        navigate("/auth");
+      } else {
+        setSession(session);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [navigate]);
+
   const handleTryAgain = (topic: string, mode: string) => {
     navigate(`/?topic=${encodeURIComponent(topic)}&mode=${mode}`);
   };
 
   useEffect(() => {
-    fetchHistory();
-  }, []);
+    if (session) {
+      fetchHistory();
+    }
+  }, [session]);
 
   const fetchHistory = async () => {
     try {
