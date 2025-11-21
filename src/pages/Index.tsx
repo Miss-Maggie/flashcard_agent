@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import type { Session } from "@supabase/supabase-js";
 import Header from "@/components/Header";
 import TopicInput from "@/components/TopicInput";
 import FlashcardGrid, { Flashcard } from "@/components/FlashcardGrid";
@@ -10,13 +11,36 @@ import QuizPanel, { QuizQuestion } from "@/components/QuizPanel";
 const STORAGE_KEY = "flashcard_session";
 
 const Index = () => {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [session, setSession] = useState<Session | null>(null);
   const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showQuiz, setShowQuiz] = useState(false);
   const [currentTopic, setCurrentTopic] = useState("");
   const [currentMode, setCurrentMode] = useState<"stem" | "general">("general");
+
+  // Auth check
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
+        navigate("/auth");
+      } else {
+        setSession(session);
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!session) {
+        navigate("/auth");
+      } else {
+        setSession(session);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [navigate]);
 
   // Load persisted session on mount
   useEffect(() => {

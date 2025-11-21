@@ -14,6 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      profiles: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       quiz_results: {
         Row: {
           completed_at: string
@@ -26,6 +47,7 @@ export type Database = {
           time_taken_seconds: number | null
           topic: string
           total_questions: number
+          user_id: string | null
         }
         Insert: {
           completed_at?: string
@@ -38,6 +60,7 @@ export type Database = {
           time_taken_seconds?: number | null
           topic: string
           total_questions: number
+          user_id?: string | null
         }
         Update: {
           completed_at?: string
@@ -50,8 +73,17 @@ export type Database = {
           time_taken_seconds?: number | null
           topic?: string
           total_questions?: number
+          user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "quiz_results_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
