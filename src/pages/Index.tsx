@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import Header from "@/components/Header";
 import TopicInput from "@/components/TopicInput";
 import FlashcardGrid, { Flashcard } from "@/components/FlashcardGrid";
 import QuizPanel, { QuizQuestion } from "@/components/QuizPanel";
+
+const STORAGE_KEY = "flashcard_session";
 
 const Index = () => {
   const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
@@ -13,6 +15,34 @@ const Index = () => {
   const [showQuiz, setShowQuiz] = useState(false);
   const [currentTopic, setCurrentTopic] = useState("");
   const [currentMode, setCurrentMode] = useState<"stem" | "general">("general");
+
+  // Load persisted session on mount
+  useEffect(() => {
+    const savedSession = localStorage.getItem(STORAGE_KEY);
+    if (savedSession) {
+      try {
+        const { flashcards, quizQuestions, topic, mode } = JSON.parse(savedSession);
+        setFlashcards(flashcards || []);
+        setQuizQuestions(quizQuestions || []);
+        setCurrentTopic(topic || "");
+        setCurrentMode(mode || "general");
+      } catch (error) {
+        console.error("Failed to load saved session:", error);
+      }
+    }
+  }, []);
+
+  // Persist session when data changes
+  useEffect(() => {
+    if (flashcards.length > 0) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        flashcards,
+        quizQuestions,
+        topic: currentTopic,
+        mode: currentMode,
+      }));
+    }
+  }, [flashcards, quizQuestions, currentTopic, currentMode]);
 
   const handleGenerate = async (topic: string, mode: "stem" | "general") => {
     setIsLoading(true);
