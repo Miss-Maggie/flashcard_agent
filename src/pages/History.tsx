@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 import Header from "@/components/Header";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Trophy, Calendar, Target, Clock, TrendingUp } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Trophy, Calendar, Target, Clock, TrendingUp, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 
 interface QuizResult {
@@ -21,6 +23,7 @@ interface QuizResult {
 }
 
 const History = () => {
+  const navigate = useNavigate();
   const [results, setResults] = useState<QuizResult[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -29,6 +32,10 @@ const History = () => {
     bestScore: 0,
     totalQuestions: 0,
   });
+
+  const handleTryAgain = (topic: string, mode: string) => {
+    navigate(`/?topic=${encodeURIComponent(topic)}&mode=${mode}`);
+  };
 
   useEffect(() => {
     fetchHistory();
@@ -213,8 +220,8 @@ const History = () => {
                       </div>
                     </div>
 
-                    {/* Right side - Score */}
-                    <div className="flex items-center gap-3 md:gap-4">
+                    {/* Right side - Score and Actions */}
+                    <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 md:gap-4">
                       <div className="text-right">
                         <p className={`text-2xl md:text-3xl font-bold ${getScoreColor(result.score_percentage)}`}>
                           {result.score_percentage.toFixed(0)}%
@@ -231,6 +238,15 @@ const History = () => {
                          result.score_percentage >= 70 ? "👍 Good" :
                          result.score_percentage >= 50 ? "📚 Keep Going" : "💪 Try Again"}
                       </Badge>
+                      <Button
+                        onClick={() => handleTryAgain(result.topic, result.mode)}
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                        Try Again
+                      </Button>
                     </div>
                   </div>
                 </Card>
