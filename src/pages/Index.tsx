@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import Header from "@/components/Header";
 import TopicInput from "@/components/TopicInput";
@@ -9,6 +10,7 @@ import QuizPanel, { QuizQuestion } from "@/components/QuizPanel";
 const STORAGE_KEY = "flashcard_session";
 
 const Index = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -31,6 +33,18 @@ const Index = () => {
       }
     }
   }, []);
+
+  // Auto-generate from URL parameters (Try Again feature)
+  useEffect(() => {
+    const topic = searchParams.get("topic");
+    const mode = searchParams.get("mode") as "stem" | "general" | null;
+    
+    if (topic && mode) {
+      handleGenerate(topic, mode);
+      // Clear URL parameters after triggering generation
+      setSearchParams({});
+    }
+  }, [searchParams]);
 
   // Persist session when data changes
   useEffect(() => {
