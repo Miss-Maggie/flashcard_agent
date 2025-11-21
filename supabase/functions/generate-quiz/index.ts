@@ -270,12 +270,39 @@ Deno.serve(async (req) => {
     console.log("[Genkit] Invoking Vertex AI model...");
     const aiResponse = await callVertexAI(userPrompt, systemContext, config);
     console.log("[Genkit] Model response received");
+    
+    // Debug: Log the full response structure
+    console.log("[Debug] Full AI response structure:", JSON.stringify(aiResponse, null, 2));
+
+    // Check if response was blocked by safety filters
+    if (aiResponse.candidates?.[0]?.finishReason === "SAFETY") {
+      console.error("[Genkit] Response blocked by safety filters");
+      return new Response(
+        JSON.stringify({ 
+          error: "Content generation blocked by safety filters. Please try a different topic or rephrase." 
+        }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Check for other finish reasons that indicate failures
+    const finishReason = aiResponse.candidates?.[0]?.finishReason;
+    if (finishReason && finishReason !== "STOP" && finishReason !== "MAX_TOKENS") {
+      console.error("[Genkit] Unexpected finish reason:", finishReason);
+      return new Response(
+        JSON.stringify({ 
+          error: `AI generation failed with reason: ${finishReason}` 
+        }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     const content = aiResponse.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!content) {
       console.error("[Genkit] No content in AI response");
+      console.error("[Debug] Candidates:", aiResponse.candidates);
       return new Response(
-        JSON.stringify({ error: "Invalid AI response" }),
+        JSON.stringify({ error: "Invalid AI response - no content generated" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
