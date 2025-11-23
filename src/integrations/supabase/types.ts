@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      flashcards: {
+        Row: {
+          answer: string
+          category: string | null
+          created_at: string
+          id: string
+          mode: string
+          question: string
+          topic: string
+          user_id: string
+        }
+        Insert: {
+          answer: string
+          category?: string | null
+          created_at?: string
+          id?: string
+          mode: string
+          question: string
+          topic: string
+          user_id: string
+        }
+        Update: {
+          answer?: string
+          category?: string | null
+          created_at?: string
+          id?: string
+          mode?: string
+          question?: string
+          topic?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string

@@ -42,21 +42,37 @@ const Index = () => {
     return () => subscription.unsubscribe();
   }, [navigate]);
 
-  // Load persisted session on mount
+  // Load flashcards from database on mount
   useEffect(() => {
-    const savedSession = localStorage.getItem(STORAGE_KEY);
-    if (savedSession) {
+    const loadFlashcards = async () => {
+      if (!session) return;
+
       try {
-        const { flashcards, quizQuestions, topic, mode } = JSON.parse(savedSession);
-        setFlashcards(flashcards || []);
-        setQuizQuestions(quizQuestions || []);
-        setCurrentTopic(topic || "");
-        setCurrentMode(mode || "general");
+        const { data, error } = await supabase
+          .from('flashcards')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(20);
+
+        if (error) {
+          console.error("Error loading flashcards:", error);
+          return;
+        }
+
+        // Group flashcards by topic and created_at to get the most recent set
+        if (data && data.length > 0) {
+          const latestFlashcards = data.slice(0, 6); // Get latest 6 flashcards
+          setFlashcards(latestFlashcards);
+          setCurrentTopic(latestFlashcards[0].topic);
+          setCurrentMode(latestFlashcards[0].mode as "stem" | "general");
+        }
       } catch (error) {
-        console.error("Failed to load saved session:", error);
+        console.error("Failed to load flashcards:", error);
       }
-    }
-  }, []);
+    };
+
+    loadFlashcards();
+  }, [session]);
 
   // Auto-generate from URL parameters (Try Again feature)
   useEffect(() => {
@@ -70,17 +86,7 @@ const Index = () => {
     }
   }, [searchParams]);
 
-  // Persist session when data changes
-  useEffect(() => {
-    if (flashcards.length > 0) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        flashcards,
-        quizQuestions,
-        topic: currentTopic,
-        mode: currentMode,
-      }));
-    }
-  }, [flashcards, quizQuestions, currentTopic, currentMode]);
+  // Note: Removed localStorage persistence as flashcards are now stored in the database
 
   const handleGenerate = async (topic: string, mode: "stem" | "general") => {
     setIsLoading(true);
