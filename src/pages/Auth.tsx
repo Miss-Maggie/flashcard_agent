@@ -67,7 +67,16 @@ const Auth = () => {
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        // If user already exists, switch to login tab
+        if (error.message.includes("already registered") || error.message.includes("User already registered")) {
+          toast.error("Account already exists. Please login instead.");
+          setActiveTab("login");
+          return;
+        }
+        throw error;
+      }
+      
       toast.success("Account created! You can now login.");
       setActiveTab("login");
     } catch (error: any) {
