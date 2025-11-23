@@ -131,7 +131,7 @@ const callVertexAI = async (prompt: string, systemContext: string, config: any) 
           temperature: 0.9,
           topK: 40,
           topP: 0.95,
-          maxOutputTokens: 2048,
+          maxOutputTokens: 8192,
         },
       }),
     });
