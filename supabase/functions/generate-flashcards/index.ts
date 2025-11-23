@@ -1,6 +1,8 @@
 // Vertex AI integration without external auth library
 // Using direct OAuth2 token exchange
 
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -243,8 +245,30 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Initialize Supabase client
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      {
+        global: {
+          headers: { Authorization: req.headers.get('Authorization')! },
+        },
+      }
+    );
+
+    // Get user from auth token
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+    
+    if (authError || !user) {
+      console.error("[Auth] Authentication failed:", authError);
+      return new Response(
+        JSON.stringify({ error: "Authentication required" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const { topic, mode } = await req.json();
-    console.log("[Genkit Flow] Starting flashcard generation for topic:", topic, "mode:", mode);
+    console.log("[Genkit Flow] Starting flashcard generation for topic:", topic, "mode:", mode, "user:", user.id);
 
     if (!topic) {
       return new Response(
@@ -307,8 +331,38 @@ Deno.serve(async (req) => {
     const flashcards = parseFlashcards(content);
     console.log(`[ADK] Successfully generated ${flashcards.length} flashcards`);
 
+    // Save flashcards to database
+    console.log("[Database] Saving flashcards to database...");
+    const flashcardsToInsert = flashcards.map((card: any) => ({
+      user_id: user.id,
+      topic,
+      mode: mode || "general",
+      question: card.question,
+      answer: card.answer,
+      category: card.category,
+    }));
+
+    const { data: savedFlashcards, error: insertError } = await supabaseClient
+      .from('flashcards')
+      .insert(flashcardsToInsert)
+      .select();
+
+    if (insertError) {
+      console.error("[Database] Error saving flashcards:", insertError);
+      // Still return the generated flashcards even if DB save fails
+      return new Response(
+        JSON.stringify({ 
+          flashcards,
+          warning: "Flashcards generated but not saved to database"
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log(`[Database] Successfully saved ${savedFlashcards?.length} flashcards`);
+
     return new Response(
-      JSON.stringify({ flashcards }),
+      JSON.stringify({ flashcards: savedFlashcards }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
