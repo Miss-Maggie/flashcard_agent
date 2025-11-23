@@ -70,20 +70,22 @@ const Auth = () => {
       if (error) {
         // If user already exists, switch to login tab
         if (error.message.includes("already registered") || error.message.includes("User already registered")) {
-          toast.error("Account already exists. Please login instead.");
+          setLoading(false);
           setActiveTab("login");
+          toast.error("Account already exists. Please login instead.");
           return;
         }
         throw error;
       }
       
-      toast.success("Account created! You can now login.");
+      // Successfully created account - switch to login tab
+      setLoading(false);
       setActiveTab("login");
+      toast.success("Account created! Please login with your credentials.");
     } catch (error: any) {
       console.error("Signup error:", error);
-      toast.error(error.message || "Failed to create account");
-    } finally {
       setLoading(false);
+      toast.error(error.message || "Failed to create account");
     }
   };
 
