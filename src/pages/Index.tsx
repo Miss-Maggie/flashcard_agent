@@ -95,6 +95,16 @@ const Index = () => {
     setCurrentMode(mode);
     
     try {
+      // Ensure we have a fresh session token
+      const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !currentSession) {
+        console.error("Session error:", sessionError);
+        toast.error("Session expired. Please log in again.");
+        navigate("/auth");
+        return;
+      }
+
       console.log("Generating flashcards for:", topic, mode);
       
       const { data, error } = await supabase.functions.invoke("generate-flashcards", {
