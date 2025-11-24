@@ -78,6 +78,9 @@ const Auth = () => {
         throw error;
       }
       
+      // Sign out immediately after signup to force manual login
+      await supabase.auth.signOut();
+      
       // Successfully created account - switch to login tab
       setLoading(false);
       setActiveTab("login");
