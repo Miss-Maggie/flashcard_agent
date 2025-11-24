@@ -246,12 +246,23 @@ Deno.serve(async (req) => {
 
   try {
     // Initialize Supabase client
+    const authHeader = req.headers.get('Authorization');
+    console.log("[Auth] Authorization header present:", !!authHeader);
+    
+    if (!authHeader) {
+      console.error("[Auth] No authorization header found");
+      return new Response(
+        JSON.stringify({ error: "Authentication required - please log in again" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_PUBLISHABLE_KEY') ?? '',
       {
         global: {
-          headers: { Authorization: req.headers.get('Authorization')! },
+          headers: { Authorization: authHeader },
         },
       }
     );
@@ -260,12 +271,14 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
     
     if (authError || !user) {
-      console.error("[Auth] Authentication failed:", authError);
+      console.error("[Auth] Authentication failed:", authError?.message || "No user found");
       return new Response(
-        JSON.stringify({ error: "Authentication required" }),
+        JSON.stringify({ error: "Authentication failed - please log in again" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    console.log("[Auth] User authenticated:", user.id);
 
     const { topic, mode } = await req.json();
     console.log("[Genkit Flow] Starting flashcard generation for topic:", topic, "mode:", mode, "user:", user.id);
