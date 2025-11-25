@@ -63,6 +63,28 @@ const History = () => {
   useEffect(() => {
     if (session) {
       fetchHistory();
+      
+      // Set up real-time subscription for quiz results
+      const channel = supabase
+        .channel('quiz-results-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'quiz_results',
+            filter: `user_id=eq.${session.user.id}`
+          },
+          () => {
+            console.log('New quiz result detected, refreshing...');
+            fetchHistory();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
   }, [session]);
 
@@ -265,12 +287,12 @@ const History = () => {
                       </Badge>
                       <Button
                         onClick={() => handleTryAgain(result.topic, result.mode)}
-                        variant="outline"
+                        variant={result.score_percentage < 70 ? "default" : "outline"}
                         size="sm"
                         className="gap-2"
                       >
                         <RefreshCw className="h-4 w-4" />
-                        Try Again
+                        {result.score_percentage < 70 ? "Try Again!" : "Retry"}
                       </Button>
                     </div>
                   </div>
