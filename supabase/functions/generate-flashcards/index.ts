@@ -245,13 +245,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Initialize Supabase client with service role for auth verification
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-    );
-
-    // Extract JWT token from Authorization header
+    // Get Authorization header
     const authHeader = req.headers.get('Authorization');
     console.log("[Auth] Authorization header present:", !!authHeader);
     
@@ -263,9 +257,19 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Create Supabase client with Auth context of the logged in user
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      {
+        global: {
+          headers: { Authorization: authHeader },
+        },
+      }
+    );
+
+    // Extract token and verify user
     const token = authHeader.replace('Bearer ', '');
-    
-    // Verify JWT token and get user
     const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
     
     if (authError || !user) {
