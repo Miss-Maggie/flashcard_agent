@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { writeFileSync } from 'fs';
-import { Database } from '../src/integrations/supabase/types';
+import { Database } from '../../src/integrations/supabase/types';
 
 // Lovable Cloud credentials (from your .env)
 const CLOUD_URL = 'https://nffmxxmpccakdylnhjqf.supabase.co';

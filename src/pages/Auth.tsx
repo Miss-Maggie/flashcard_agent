@@ -45,6 +45,8 @@ const Auth = () => {
       });
 
       if (error) throw error;
+      // Mark this browser session as verified so reloads won't force a re-login until the tab is closed
+      try { sessionStorage.setItem('user_verified', 'true'); } catch (e) { /* ignore */ }
       toast.success("Welcome back!");
     } catch (error: any) {
       console.error("Login error:", error);
@@ -59,12 +61,16 @@ const Auth = () => {
     setLoading(true);
 
     try {
+      // Only include redirect in production or when explicitly allowed to avoid 422 from
+      // un-whitelisted redirect URLs during local development.
+      const signUpOptions = import.meta.env.PROD
+        ? { emailRedirectTo: `${window.location.origin}/` }
+        : undefined;
+
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/`,
-        },
+        ...(signUpOptions ? { options: signUpOptions } : {}),
       });
 
       if (error) {

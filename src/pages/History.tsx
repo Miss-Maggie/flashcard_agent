@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Session } from "@supabase/supabase-js";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import Header from "@/components/Header";
+import Header from "@/components/common/Header";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -93,6 +93,7 @@ const History = () => {
       const { data, error } = await supabase
         .from("quiz_results")
         .select("*")
+        .eq('user_id', session?.user.id)
         .order("completed_at", { ascending: false })
         .limit(50);
 
@@ -108,6 +109,13 @@ const History = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // UI state for expanding details per result
+  const [expandedResultId, setExpandedResultId] = useState<string | null>(null);
+
+  const toggleDetails = (id: string) => {
+    setExpandedResultId(prev => (prev === id ? null : id));
   };
 
   const calculateStats = (data: QuizResult[]) => {
@@ -285,17 +293,54 @@ const History = () => {
                          result.score_percentage >= 70 ? "👍 Good" :
                          result.score_percentage >= 50 ? "📚 Keep Going" : "💪 Try Again"}
                       </Badge>
-                      <Button
-                        onClick={() => handleTryAgain(result.topic, result.mode)}
-                        variant={result.score_percentage < 70 ? "default" : "outline"}
-                        size="sm"
-                        className="gap-2"
-                      >
-                        <RefreshCw className="h-4 w-4" />
-                        {result.score_percentage < 70 ? "Try Again!" : "Retry"}
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          onClick={() => handleTryAgain(result.topic, result.mode)}
+                          variant={result.score_percentage < 70 ? "default" : "outline"}
+                          size="sm"
+                          className="gap-2"
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                          {result.score_percentage < 70 ? "Try Again!" : "Retry"}
+                        </Button>
+
+                        <Button
+                          onClick={() => toggleDetails(result.id)}
+                          variant="ghost"
+                          size="sm"
+                          className="gap-2"
+                        >
+                          Details
+                        </Button>
+                      </div>
                     </div>
                   </div>
+                  {expandedResultId === result.id && (
+                    <div className="mt-3">
+                      <Card className="p-3 bg-muted/10">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-sm text-muted-foreground">Stored questions / metadata</p>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                try {
+                                  navigator.clipboard.writeText(JSON.stringify(result.questions_data, null, 2));
+                                  toast.success('Copied to clipboard');
+                                } catch (e) {
+                                  toast.error('Copy failed');
+                                }
+                              }}
+                            >
+                              Copy JSON
+                            </Button>
+                          </div>
+                        </div>
+                        <pre className="whitespace-pre-wrap text-xs max-h-60 overflow-auto bg-transparent">{JSON.stringify(result.questions_data, null, 2)}</pre>
+                      </Card>
+                    </div>
+                  )}
                 </Card>
               ))}
             </div>

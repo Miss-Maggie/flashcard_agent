@@ -1,5 +1,4 @@
-// Vertex AI integration without external auth library
-// Using direct OAuth2 token exchange
+declare const Deno: any;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -192,57 +191,101 @@ const parseQuizQuestions = (content: string) => {
     });
 
     return questions;
-  } catch (parseError) {
-    console.error("[Parse Error] Failed to parse AI response:", parseError);
-    console.error("[Parse Error] Content that failed:", cleanContent.substring(0, 500));
-    const errorMessage = parseError instanceof Error ? parseError.message : String(parseError);
-    
-    // Attempt to repair malformed JSON (e.g., truncated responses)
-    if (errorMessage.includes("Unterminated string") || 
-        errorMessage.includes("Unexpected end of JSON input") ||
-        errorMessage.includes("Unexpected token")) {
-      console.log("[Parse Error] Attempting to repair malformed JSON...");
-      
-      try {
-        // Find the last complete question object by looking for the last complete closing brace
-        let repairedContent = cleanContent;
+    } catch (parseError) {
+      console.error("[Parse Error] Failed to parse AI response:", parseError);
+      console.error("[Parse Error] Content that failed:", cleanContent.substring(0, 500));
+      const errorMessage = parseError instanceof Error ? parseError.message : String(parseError);
+
+      // Attempt to repair malformed JSON (e.g., truncated responses)
+      if (errorMessage.includes("Unterminated string") || 
+          errorMessage.includes("Unexpected end of JSON input") ||
+          errorMessage.includes("Unexpected token")) {
+        console.log("[Parse Error] Attempting to repair malformed JSON...");
         
-        // Try to find the last complete object
-        const lastCompleteObjectMatch = cleanContent.lastIndexOf('}');
-        if (lastCompleteObjectMatch !== -1) {
-          // Trim to the last complete object and close the array
-          repairedContent = cleanContent.substring(0, lastCompleteObjectMatch + 1) + ']';
+        try {
+          // Find the last complete question object by looking for the last complete closing brace
+          let repairedContent = cleanContent;
           
-          console.log("[Parse Error] Attempting repair with:", repairedContent.substring(0, 200));
-          const repairedQuestions = JSON.parse(repairedContent);
-          
-          if (Array.isArray(repairedQuestions) && repairedQuestions.length > 0) {
-            console.log("[Parse Error] Successfully repaired JSON, recovered", repairedQuestions.length, "questions");
+          // Try to find the last complete object
+          const lastCompleteObjectMatch = cleanContent.lastIndexOf('}');
+          if (lastCompleteObjectMatch !== -1) {
+            // Trim to the last complete object and close the array
+            repairedContent = cleanContent.substring(0, lastCompleteObjectMatch + 1) + ']';
             
-            // Validate structure of repaired questions
-            repairedQuestions.forEach((q, index) => {
-              if (!q.question || !Array.isArray(q.options) || q.options.length !== 4 || 
-                  typeof q.correctAnswer !== "number" || !q.explanation) {
+            console.log("[Parse Error] Attempting repair with:", repairedContent.substring(0, 200));
+            const repairedQuestions = JSON.parse(repairedContent);
+            
+            if (Array.isArray(repairedQuestions) && repairedQuestions.length > 0) {
+              console.log("[Parse Error] Successfully repaired JSON, recovered", repairedQuestions.length, "questions");
+              
+              // Validate structure of repaired questions
+              repairedQuestions.forEach((q, index) => {
+                if (!q.question || !Array.isArray(q.options) || q.options.length !== 4 || 
+                    typeof q.correctAnswer !== "number" || !q.explanation) {
+                  throw new Error(`Repaired quiz question ${index} has invalid structure`);
+                }
+                if (q.correctAnswer < 0 || q.correctAnswer > 3) {
+                  throw new Error(`Repaired quiz question ${index} has invalid correctAnswer index`);
+                }
+              });
+              
+              return repairedQuestions;
+            }
+          }
+        } catch (repairError) {
+          console.error("[Parse Error] Repair attempt failed:", repairError);
+        }
+      }
+
+      // Additional repair strategy: try to extract the first JSON array occurrence within the content
+      try {
+        const arrayMatch = cleanContent.match(/\[[\s\S]*\]/);
+        if (arrayMatch) {
+          console.log('[Parse Repair] Found JSON array via regex, attempting parse...');
+          const arr = JSON.parse(arrayMatch[0]);
+          if (Array.isArray(arr) && arr.length > 0) {
+            // validate structure
+            arr.forEach((q, index) => {
+              if (!q.question || !Array.isArray(q.options) || q.options.length !== 4 ||
+                  typeof q.correctAnswer !== 'number' || !q.explanation) {
                 throw new Error(`Repaired quiz question ${index} has invalid structure`);
               }
-              if (q.correctAnswer < 0 || q.correctAnswer > 3) {
-                throw new Error(`Repaired quiz question ${index} has invalid correctAnswer index`);
-              }
             });
-            
-            return repairedQuestions;
+            console.log('[Parse Repair] Successfully parsed JSON array from content');
+            return arr;
           }
         }
-      } catch (repairError) {
-        console.error("[Parse Error] Repair attempt failed:", repairError);
+      } catch (arrayRepairError) {
+        console.error('[Parse Repair] JSON array extraction failed:', arrayRepairError);
       }
+
+      // Fallback: try to extract individual JSON objects and assemble an array
+      try {
+        const objMatches = [...cleanContent.matchAll(/\{[\s\S]*?\}/g)].map(m => m[0]);
+        if (objMatches.length > 0) {
+          const reconstructed = `[${objMatches.join(',')}]`;
+          console.log('[Parse Repair] Attempting to reconstruct array from objects');
+          const reconstructedArr = JSON.parse(reconstructed);
+          if (Array.isArray(reconstructedArr) && reconstructedArr.length > 0) {
+            reconstructedArr.forEach((q, index) => {
+              if (!q.question || !Array.isArray(q.options) || q.options.length !== 4 ||
+                  typeof q.correctAnswer !== 'number' || !q.explanation) {
+                throw new Error(`Reconstructed quiz question ${index} has invalid structure`);
+              }
+            });
+            console.log('[Parse Repair] Successfully reconstructed quiz questions:', reconstructedArr.length);
+            return reconstructedArr;
+          }
+        }
+      } catch (reconstructError) {
+        console.error('[Parse Repair] Reconstruction attempt failed:', reconstructError);
+      }
+
+      throw new Error(`JSON parsing failed: ${errorMessage}`);
     }
-    
-    throw new Error(`JSON parsing failed: ${errorMessage}`);
-  }
 };
 
-Deno.serve(async (req) => {
+Deno.serve(async (req: any) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -329,3 +372,5 @@ Deno.serve(async (req) => {
     );
   }
 });
+
+

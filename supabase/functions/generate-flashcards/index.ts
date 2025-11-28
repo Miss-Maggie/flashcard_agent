@@ -1,6 +1,3 @@
-// Vertex AI integration without external auth library
-// Using direct OAuth2 token exchange
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 
 const corsHeaders = {

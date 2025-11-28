@@ -3,10 +3,10 @@ import { toast } from "sonner";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import type { Session } from "@supabase/supabase-js";
-import Header from "@/components/Header";
-import TopicInput from "@/components/TopicInput";
-import FlashcardGrid, { Flashcard } from "@/components/FlashcardGrid";
-import QuizPanel, { QuizQuestion } from "@/components/QuizPanel";
+import Header from "@/components/common/Header";
+import TopicInput from "@/components/common/TopicInput";
+import FlashcardGrid, { Flashcard } from "@/components/features/FlashcardGrid";
+import QuizPanel, { QuizQuestion } from "@/components/features/QuizPanel";
 
 const STORAGE_KEY = "flashcard_session";
 
@@ -24,8 +24,15 @@ const Index = () => {
   // Auth check
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
+      // Require an explicit verification flag per browser session to allow actions.
+      const verified = sessionStorage.getItem("user_verified");
+
       if (!session) {
         navigate("/auth");
+      } else if (!verified) {
+        // If there's an existing session but the user hasn't verified in this browser session,
+        // sign them out so they're prompted to log in again.
+        supabase.auth.signOut().then(() => navigate("/auth"));
       } else {
         setSession(session);
       }
@@ -43,36 +50,14 @@ const Index = () => {
   }, [navigate]);
 
   // Load flashcards from database on mount
+  // Clear flashcards on reload: do NOT auto-load previous flashcards from DB
   useEffect(() => {
-    const loadFlashcards = async () => {
-      if (!session) return;
-
-      try {
-        const { data, error } = await supabase
-          .from('flashcards')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(20);
-
-        if (error) {
-          console.error("Error loading flashcards:", error);
-          return;
-        }
-
-        // Group flashcards by topic and created_at to get the most recent set
-        if (data && data.length > 0) {
-          const latestFlashcards = data.slice(0, 6); // Get latest 6 flashcards
-          setFlashcards(latestFlashcards);
-          setCurrentTopic(latestFlashcards[0].topic);
-          setCurrentMode(latestFlashcards[0].mode as "stem" | "general");
-        }
-      } catch (error) {
-        console.error("Failed to load flashcards:", error);
-      }
-    };
-
-    loadFlashcards();
-  }, [session]);
+    // Ensure UI starts with an empty flashcards array on first mount / reload
+    setFlashcards([]);
+    setQuizQuestions([]);
+    setShowQuiz(false);
+    // Intentionally do not load historical flashcards here so the session starts fresh.
+  }, []);
 
   // Auto-generate from URL parameters (Try Again feature)
   useEffect(() => {
@@ -170,6 +155,42 @@ const Index = () => {
     toast.success(message, { duration: 5000 });
   };
 
+  // User-visible action to (re-)generate quiz questions from the current flashcards
+  const handleCreateQuiz = async () => {
+    if (flashcards.length === 0) {
+      toast.error("No flashcards to generate a quiz from. Create flashcards first.");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const topic = currentTopic || flashcards[0]?.topic || "";
+      const mode = currentMode || (flashcards[0]?.mode as "stem" | "general") || "general";
+
+      const { data: quizData, error: quizError } = await supabase.functions.invoke("generate-quiz", {
+        body: { topic, mode, flashcards },
+      });
+
+      if (quizError) {
+        console.error("Error generating quiz:", quizError);
+        toast.error("Quiz generation failed. Check logs and try again.");
+        return;
+      }
+
+      if (quizData?.questions) {
+        setQuizQuestions(quizData.questions);
+        toast.success(`Quiz generated (${quizData.questions.length} questions)`);
+      } else {
+        toast.error("No quiz questions returned from the server.");
+      }
+    } catch (error: any) {
+      console.error("handleCreateQuiz error:", error);
+      toast.error("Failed to create quiz. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
@@ -181,16 +202,24 @@ const Index = () => {
           <>
             <FlashcardGrid flashcards={flashcards} />
             
-            {quizQuestions.length > 0 && (
-              <div className="flex justify-center">
+            <div className="flex justify-center">
+              {quizQuestions.length === 0 ? (
+                <button
+                  onClick={handleCreateQuiz}
+                  disabled={isLoading}
+                  className="px-8 py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:opacity-90 transition-opacity shadow-md disabled:opacity-60"
+                >
+                  Create Quiz
+                </button>
+              ) : (
                 <button
                   onClick={() => setShowQuiz(!showQuiz)}
                   className="px-8 py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:opacity-90 transition-opacity shadow-md"
                 >
                   {showQuiz ? "Hide Quiz" : "Start Interactive Quiz"}
                 </button>
-              </div>
-            )}
+              )}
+            </div>
 
             {showQuiz && quizQuestions.length > 0 && (
               <QuizPanel 
