@@ -7,7 +7,6 @@ export interface Flashcard {
   question: string;
   answer: string;
   category?: string;
-  // Optional metadata that may be included by generation functions
   topic?: string;
   mode?: "stem" | "general";
 }
