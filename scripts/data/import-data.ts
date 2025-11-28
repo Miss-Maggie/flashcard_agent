@@ -2,9 +2,8 @@ import { createClient } from '@supabase/supabase-js';
 import { readFileSync } from 'fs';
 import { Database } from '../../src/integrations/supabase/types';
 
-// Local Supabase credentials (update these after running 'supabase start')
 const LOCAL_URL = 'http://127.0.0.1:54321';
-const LOCAL_KEY = 'YOUR_LOCAL_ANON_KEY'; // Get this from 'supabase status'
+const LOCAL_KEY = 'YOUR_LOCAL_ANON_KEY';
 
 const supabase = createClient<Database>(LOCAL_URL, LOCAL_KEY);
 

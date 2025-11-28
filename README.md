@@ -4,12 +4,12 @@ FlashCard Agent is an AI-powered learning app built with React + TypeScript (Vit
 
 ## Live Demo
 
-🚀 **[View Live Demo](https://your-deployed-app-url.com)**
+🚀 **[View Live Demo](https://flashcard-agent.vercel.app/)**
 
 
 Contents
 ---------
-- Project overview
+- Project overview 
 - Requirements
 - Local setup (Windows / PowerShell)
 - Environment variables
@@ -207,4 +207,5 @@ This project includes third-party libraries (React, Vite, Supabase, Tailwind, sh
 
 Developed by 
 -------
+Github Link
 [Magdaline Muthui](https://github.com/Miss-Maggie/flashcard_agent.git ) 
